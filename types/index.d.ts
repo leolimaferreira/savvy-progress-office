@@ -40,10 +40,30 @@ export type AgentRun = {
   stepNote?: string
 }
 
+/** The main conversation, counted turn by turn as the subagents are. */
+export type MainRun = {
+  model: string
+  effort?: string
+  status: 'working' | 'idle'
+  /** The prompt the current or last turn began with, clipped. */
+  task: string
+  turnStartedAt?: number
+  /** Wall-clock time of finished turns. */
+  activeMs: number
+  tokens: number
+  costUsd: number
+  contextTokens: number
+  contextMax: number
+  steps: number
+  turns: number
+}
+
 export type Panel = {
   isCompact: boolean
   isDoneCollapsed: boolean
   autoOpenedFor: string
+  /** The person dismissed the band; a new flow or opening the office brings it back. */
+  isBandHidden?: boolean
 }
 
 declare module 'claude-code' {
@@ -51,6 +71,7 @@ declare module 'claude-code' {
     'savvy-progress': {
       flow: Flow | null
       agents: AgentRun[]
+      main: MainRun
       panel: Panel
       now: number
     }
