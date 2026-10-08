@@ -83,14 +83,15 @@ test('the band shows the main session, opens the office and can be dismissed', a
 
   for (const surface of SURFACES) {
     const band = await $.ui.mount({ plugin: PLUGIN, surface, ...BAND })
-    expect(await band.find({ key: 'savvy-agents' })).toBeDefined()
+    expect(await band.find({ key: 'savvy-agents' }), 'line 86').toBeDefined()
     await band.unmount()
 
     const pane = await $.ui.mount({ plugin: PLUGIN, surface, ...PANE })
-    if (surface === 'desktop') expect(await pane.find({ type: 'Svg' })).toBeDefined()
-    else expect(await pane.find({ type: 'Text', text: /Main session/ })).toBeDefined()
+    if (surface === 'desktop') expect(await pane.find({ type: 'Svg' }), 'line 90').toBeDefined()
+    else expect(await pane.find({ type: 'Text', text: /Main session/ }), 'line 91').toBeDefined()
     await pane.press({ key: 'compact' })
-    expect(await pane.find({ type: 'Text', text: /Total: ≈\$0\.01/ })).toBeDefined()
+    if (surface === 'desktop') expect(String((await pane.find({ type: 'Svg' }))?.props.alt ?? '')).toMatch(/Total: ≈\$0\.01/)
+    else expect(await pane.find({ type: 'Text', text: /Total: ≈\$0\.01/ }), 'line 94').toBeDefined()
     await pane.press({ key: 'compact' })
     await pane.unmount()
   }

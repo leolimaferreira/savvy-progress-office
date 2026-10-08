@@ -42,12 +42,14 @@ export type Words = {
   pantry: string
   floor: string
   after: string
+  /** Short names for the score's tiles. */
+  mainShort: string
+  subsShort: string
 }
 
 export type Office = {
   boss: Boss
   desks: Desk[]
-  board: { main: Part; subs: Part; total: Part }
   words: Words
   /** `light` or `dark` pins one palette (previews); `auto` follows the system. */
   theme?: 'auto' | 'light' | 'dark'
@@ -95,12 +97,12 @@ export const fitText = (s: string, size: number, maxW: number): string => {
 const LIGHT = `.fl{fill:#f4f2ed}.gr{fill:#ebe8e1}.wl{fill:#e3dfd6}.wn{fill:#d6e9f5}.dk{fill:#dcc9a8}.dke{fill:#c7b28d}
 .mo{fill:#2b2b2e}.kb{fill:#c9c6bf}.sk{fill:#e9b48f}.hr{fill:#5a4636}.sh{fill:#e7e4dd}.pl{fill:#cfccc4}
 .bl{fill:#ffffff;stroke:#dcd9d1}.bd{fill:#ffffff;stroke:#dcd9d1}.t{fill:#1f1f1f}.s{fill:#6b6b68}.m{fill:#a3a39e}
-.tr{fill:#e6e3dc}.cp{fill:#ebe5da}.ct{fill:#d5ccbc}.lf{fill:#6aa56f}.pt{fill:#c8b8a0}.ds{stroke:#c9c5bc}`
+.tr{fill:#e6e3dc}.cp{fill:#ebe5da}.ct{fill:#d5ccbc}.lf{fill:#6aa56f}.pt{fill:#c8b8a0}.ds{stroke:#c9c5bc}.tile{fill:#f4f3f0}`
 
 const DARK = `.fl{fill:#1e1e1d}.gr{fill:#232322}.wl{fill:#2a2a28}.wn{fill:#2c3a44}.dk{fill:#4d4236}.dke{fill:#3c342b}
 .mo{fill:#0f0f10}.kb{fill:#5b5853}.sk{fill:#d9a07b}.hr{fill:#3b2e24}.sh{fill:#3a3936}.pl{fill:#4a4844}
 .bl{fill:#2c2c2b;stroke:#3d3d3b}.bd{fill:#262625;stroke:#3a3a38}.t{fill:#ececec}.s{fill:#a8a8a4}.m{fill:#6f6f6b}
-.tr{fill:#2e2e2c}.cp{fill:#262421}.ct{fill:#3a342c}.lf{fill:#4f8a55}.pt{fill:#5a4c3c}.ds{stroke:#4a4844}`
+.tr{fill:#2e2e2c}.cp{fill:#262421}.ct{fill:#3a342c}.lf{fill:#4f8a55}.pt{fill:#5a4c3c}.ds{stroke:#4a4844}.tile{fill:#262625}`
 
 const MOTION = `.on .sc{animation:sc 2.4s steps(2) infinite}@keyframes sc{50%{opacity:.55}}
 .on .hl{animation:ty .36s steps(1) infinite}.on .hr2{animation:ty .36s steps(1) infinite -.18s}
@@ -206,8 +208,6 @@ const WALL = 14
 const CELL_W = 150
 const CELL_H = 128
 const ROWS_PER_FLOOR = 2
-const BOARD_W = 214
-const BOARD_H = 76
 
 const floorTiles = (y: number, W: number, h: number): string => {
   const out = [rect(0, y, W, h, 'fl')]
@@ -222,34 +222,10 @@ const wall = (y: number, W: number): string => {
   return out.join('')
 }
 
-const board = (x: number, y: number, o: Office): string => {
-  const w = o.words
-  const colW = (BOARD_W - 62) / 3
-  const head = [w.main, w.subagents, w.total]
-    .map((h, i) => `<text class="s" x="${x + 62 + colW * (i + 1) - 8}" y="${y + 17}" text-anchor="end" font-family="${FONT}" font-size="10">${xml(fitText(h, 10, colW - 4))}</text>`)
-    .join('')
-  const row = (label: string, k: keyof Part, i: number) => {
-    const ry = y + 34 + i * 15
-    const cells = [o.board.main, o.board.subs, o.board.total]
-      .map(
-        (p, c) =>
-          `<text class="${c === 2 ? 't' : 's'}" x="${x + 62 + colW * (c + 1) - 8}" y="${ry}" text-anchor="end" font-family="${FONT}" font-size="11"${c === 2 ? ' font-weight="600"' : ''} font-variant-numeric="tabular-nums">${xml(p[k])}</text>`,
-      )
-      .join('')
-    return `<text class="m" x="${x + 10}" y="${ry}" font-family="${FONT}" font-size="10">${xml(label)}</text>${cells}`
-  }
-  return `<g>
-<rect class="bd" x="${x}" y="${y}" width="${BOARD_W}" height="${BOARD_H}" rx="8" stroke-width="1"/>
-${head}
-<rect class="tr" x="${x + 10}" y="${y + 22}" width="${BOARD_W - 20}" height="1"/>
-${row(w.cost, 'cost', 0)}${row(w.tokens, 'tokens', 1)}${row(w.time, 'time', 2)}
-</g>`
-}
-
 const bossZone = (x: number, y: number, w: number, o: Office): string => {
   const b = o.boss
   const color = colorOfFamily(b.family)
-  const cx = x + Math.min(w, 260) / 2
+  const cx = x + w / 2
   const isWorking = b.status === 'working'
   const deskTop = y + 34
   const label = isWorking ? b.task || '…' : o.words.idle
@@ -312,7 +288,6 @@ export type Drawn = { svg: string; height: number }
 
 /** The whole office at width W; its height follows the number of desks. */
 export const officeSvg = (W: number, o: Office): Drawn => {
-  const isNarrow = W < BOARD_W + 280
   const cols = Math.max(1, Math.floor((W - 2 * PAD) / CELL_W))
   const cellW = (W - 2 * PAD) / cols
   const perFloor = cols * ROWS_PER_FLOOR
@@ -321,12 +296,11 @@ export const officeSvg = (W: number, o: Office): Drawn => {
 
   const parts: string[] = []
   let y = 0
-  // Ground floor: the wall, the boss, the scoreboard.
-  const bossH = 138 + (isNarrow ? BOARD_H + 10 : 0)
+  // Ground floor: the wall and the boss.
+  const bossH = 138
   parts.push(floorTiles(0, W, WALL + bossH))
   parts.push(wall(0, W))
-  parts.push(bossZone(PAD, WALL + 4, isNarrow ? W - 2 * PAD : W - 2 * PAD - BOARD_W - 12, o))
-  parts.push(board(isNarrow ? PAD : W - PAD - BOARD_W, isNarrow ? WALL + 142 : WALL + 12, o))
+  parts.push(bossZone(PAD, WALL + 4, W - 2 * PAD, o))
   y = WALL + bossH
 
   floors.forEach((list, f) => {
@@ -348,6 +322,36 @@ export const officeSvg = (W: number, o: Office): Drawn => {
     height: y,
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${y}" viewBox="0 0 ${W} ${y}" shape-rendering="crispEdges">${style(o.theme)}${parts.join('')}</svg>`,
   }
+}
+
+// ---------------------------------------------------------------------------
+// The score above the office: one tile per measure, the total large, the main
+// session and the subagents beneath it.
+
+export type Score = { main: Part; subs: Part; total: Part }
+
+export const SCORE_H = 76
+
+export const scoreSvg = (W: number, score: Score, w: Words, mainFamily: string, theme?: Office['theme']): string => {
+  const gap = 6
+  const tw = (W - gap * 2) / 3
+  const tile = (i: number, label: string, k: keyof Part): string => {
+    const x = i * (tw + gap)
+    const line = (y: number, name: string, value: string, dot: string): string => {
+      const v = value.replace(/^≈/, '')
+      const nameW = tw - 25 - textWidth(v, 10) - 6
+      return `<circle cx="${x + 11}" cy="${y - 3.5}" r="2.5" fill="${dot}"/>
+<text class="s" x="${x + 17}" y="${y}" font-family="${FONT}" font-size="10">${xml(fitText(name, 10, Math.max(8, nameW)))}</text>
+<text class="s" x="${x + tw - 8}" y="${y}" text-anchor="end" font-family="${FONT}" font-size="10" font-variant-numeric="tabular-nums">${xml(v)}</text>`
+    }
+    return `<rect class="tile" x="${x}" y="0" width="${tw}" height="${SCORE_H}" rx="8"/>
+<text class="s" x="${x + 9}" y="16" font-family="${FONT}" font-size="11">${xml(fitText(label, 11, tw - 18))}</text>
+<text class="t" x="${x + 9}" y="36" font-family="${FONT}" font-size="16" font-weight="600" font-variant-numeric="tabular-nums">${xml(fitText(score.total[k], 16, tw - 18))}</text>
+${line(55, w.mainShort, score.main[k], colorOfFamily(mainFamily))}
+${line(69, w.subsShort, score.subs[k], colorOfFamily('other'))}`
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${SCORE_H}" viewBox="0 0 ${W} ${SCORE_H}">${style(theme)}
+${tile(0, w.cost, 'cost')}${tile(1, w.tokens, 'tokens')}${tile(2, w.time, 'time')}</svg>`
 }
 
 // ---------------------------------------------------------------------------

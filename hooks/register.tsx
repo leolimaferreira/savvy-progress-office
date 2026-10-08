@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { AgentRun, Flow, MainRun, Panel, Phase, PlannedTask } from '../types'
-import { BAND_H, bandSvg, colorOfFamily, familyOf, officeSvg } from './office'
+import { BAND_H, SCORE_H, bandSvg, colorOfFamily, familyOf, officeSvg, scoreSvg } from './office'
 import type { Band, Desk, Part as OfficePart, Words } from './office'
 
 const flow = atom({ plugin: 'savvy-progress', key: 'flow' } as const, null)
@@ -82,6 +82,8 @@ const STRINGS = {
     idle: 'waiting',
     pantry: 'Pantry',
     floor: 'Floor {n}',
+    mainShort: 'Boss',
+    subsShort: 'Team',
   },
   pt: {
     pane: 'Escritório',
@@ -116,6 +118,8 @@ const STRINGS = {
     idle: 'aguardando',
     pantry: 'Copa',
     floor: '{n}º andar',
+    mainShort: 'Chefe',
+    subsShort: 'Equipe',
   },
   ru: {
     pane: 'Офис',
@@ -150,6 +154,8 @@ const STRINGS = {
     idle: 'ожидает',
     pantry: 'Кухня',
     floor: 'Этаж {n}',
+    mainShort: 'Шеф',
+    subsShort: 'Команда',
   },
 } as const
 
@@ -414,7 +420,7 @@ const fmtPart = (p: Part): OfficePart => ({ cost: '≈' + fmtCost(p.cost), token
 
 const words = (): Words => {
   const s = tr()
-  return { main: s.main, subagents: s.subagents, total: s.total, cost: s.cost, tokens: s.tokens, time: s.time, idle: s.idle, pantry: s.pantry, floor: s.floor, after: s.after }
+  return { main: s.main, subagents: s.subagents, total: s.total, cost: s.cost, tokens: s.tokens, time: s.time, idle: s.idle, pantry: s.pantry, floor: s.floor, after: s.after, mainShort: s.mainShort, subsShort: s.subsShort }
 }
 
 const mainLabel = (m: MainRun): string =>
@@ -761,12 +767,21 @@ export const register: Register = (on, options) => {
 
     if (e.surface === 'desktop' && 'Svg' in ui) {
       const { Svg } = ui
-      const W = Math.max(280, Math.min(900, (e.props.bodyColumns || 40) * 8 - 8))
+      const W = Math.max(240, Math.min(900, (e.props.bodyColumns || 40) * 8 - 8))
+      const score = (
+        <Svg
+          key="score"
+          source={scoreSvg(W, { main: fmtPart(t.main), subs: fmtPart(t.subs), total: fmtPart(t) }, words(), familyOf(m.model))}
+          alt={`${s.main}: ${partLine(t.main)}. ${s.subagents}: ${partLine(t.subs)}. ${s.total}: ${partLine(t)}`}
+          width={W}
+          height={SCORE_H}
+        />
+      )
       if (p.isCompact) {
         return (
           <Box flexDirection="column" gap={1}>
             {title ? <Text bold>{title}</Text> : null}
-            {parts}
+            {score}
             {toggleCompact}
           </Box>
         )
@@ -780,16 +795,15 @@ export const register: Register = (on, options) => {
           ctx: ctxOf(m),
         },
         desks: desksOf(list, planned),
-        board: { main: fmtPart(t.main), subs: fmtPart(t.subs), total: fmtPart(t) },
         words: words(),
       })
       const alt =
         `${s.main}: ${m.status === 'working' ? s.isRunning : s.idle}. ` +
-        `${running.length} ${s.isRunning}, ${finished.length} ${s.isFinished}, ${planned.length} ${s.isPlanned}. ` +
-        `${s.total}: ${partLine(t)}`
+        `${running.length} ${s.isRunning}, ${finished.length} ${s.isFinished}, ${planned.length} ${s.isPlanned}.`
       return (
         <Box flexDirection="column" gap={1}>
           {title ? <Text bold>{title}</Text> : null}
+          {score}
           <Svg source={drawn.svg} alt={alt} width={W} height={drawn.height} />
           {toggleCompact}
         </Box>
